@@ -38,6 +38,10 @@ class Draw extends Plugin
      * [options](http://leafletjs.com/reference.html).
      */
     public $options = null;
+    /**
+     * existing Geojson string 
+     */
+    public $existingGeojson = '';
 
     /* get/set methods */
 
@@ -71,6 +75,7 @@ class Draw extends Plugin
      */
     public function encode()
     {
+        //change control, add edit/delete preloaded, save action
         $js = "
             var editableLayers = new L.FeatureGroup();
             {$this->map}.addLayer(editableLayers);
@@ -78,19 +83,44 @@ class Draw extends Plugin
             var drawnItems = new L.FeatureGroup();
             {$this->map}.addLayer(drawnItems);
 
-            var drawControl = new L.Control.Draw({$this->getOptions()});
+            var drawControl = new L.Control.Draw({
+            draw: {
+                circle: false,
+                circlemarker: false
+            },
+            edit: {
+                featureGroup: drawnItems
+            }});
             {$this->map}.addControl(drawControl);
 
-            {$this->map}.on('draw:created', function (e) {
-                var type = e.layerType,
-                    layer = e.layer;
+            //draw existing geojson
+            var geojsonLayer=null;
+                geojsonLayer = L.geoJson({$this->existingGeojson});
+                geojsonLayer.eachLayer(
+                    function(l){
+                        drawnItems.addLayer(l);
+                });
 
-                /* if (type === 'marker') {
-                    layer.bindPopup('A popup!');
-                } */
+            {$this->map}.on('draw:created', function (e) {
+
+                var layer = e.layer,
+                feature = layer.feature = layer.feature || {}; // Intialize layer.feature
+
+                feature.type = feature.type || 'Feature'; // Intialize feature.type
+                var props = feature.properties = feature.properties || {}; // Intialize feature.properties
 
                 drawnItems.addLayer(layer);
             });
+            //action for save button on the page
+            if(document.getElementById('Save')!=null)
+            document.getElementById('Save').onclick = function(e) {
+                // Extract GeoJson from featureGroup
+                var data = drawnItems.toGeoJSON();
+                // Stringify the GeoJson
+                var convertedData = JSON.stringify(data);
+                document.getElementById('geojson').value=convertedData;
+                
+              };
         ";
 
         return new JsExpression($js);
